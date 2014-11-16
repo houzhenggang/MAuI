@@ -1,0 +1,8 @@
+# (ignore archiso work and out dir)
+#archlive-install-server/releng/work/
+#archlive-install-server/releng/out/
+archlive-test/releng/work/
+archlive-test/releng/out/
+
+# (ignore unmodified archiso dir)
+archlive-unmodified-test/

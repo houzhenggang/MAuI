@@ -1,0 +1,11 @@
+#
+# /etc/hosts: static lookup table for host names
+#
+
+#<ip-address>	<hostname.domain.org>	<hostname>
+127.0.0.1       localhost.localdomain   localhost archlive-install-server
+::1             localhost.localdomain   localhost archlive-install-server
+
+#: (add more known hosts below)
+
+# End of file

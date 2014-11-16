@@ -54,3 +54,43 @@ Implementation
 
 ### Adaptions to the Arch Linux live medium
 
+The adaptions to the Arch Linux live medium are preferably done using
+an installed Arch Linux system. Doing so, the Archiso tools, designed 
+for this, can easily be used.
+
+Reference: https://wiki.archlinux.org/index.php/Archiso
+
+The following steps are done in a working Arch Linux system.
+
+Installed archiso.
+
+Created test directory: ./archlive-test
+
+Copy releng "profile" from host to archlive-test:
+(as root, in ./archlive-test)
+~~~
+# cp -r /usr/share/archiso/configs/releng/ .
+~~~
+
+#### Adaptions to releng/airootfs:
+
+- Adapt hostname
+  (in etc/hostname: live-install-server )
+
+- Set the keymap (convenience).
+  (create etc/vconsole.conf: KEYMAP="de_CH-latin1" )
+
+- Set the timezone and clock.
+  (customize_airootfs.sh: adapt timezone )
+
+Set up the network w/ a static IP.
+- added etc/hosts
+- don't start dhcpcd
+  (add suffix _ORIGINAL-airootfs to etc/udev/rules.d/81-dhcpcd.rules/81-dhcpcd.rules )
+- prevent udev of giving network devices a terribly stupid name
+  (add etc/udev/rules.d/80-net-setup-link.rules )
+  (See: http://www.freedesktop.org/wiki/Software/systemd/PredictableNetworkInterfaceNames/ )
+- set static ip
+  (create etc/udev/rules.d/81-eth0-static-ip.rules ,
+   and script under root/local/eth0-static-ip )
+
