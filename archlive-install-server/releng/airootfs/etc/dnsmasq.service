@@ -1,0 +1,9 @@
+port=0
+interface=eth0
+bind-interfaces
+dhcp-range=192.168.0.50,192.168.0.150,12h
+dhcp-boot=/arch/boot/syslinux/lpxelinux.0
+dhcp-option-force=209,boot/syslinux/archiso.cfg
+dhcp-option-force=210,/arch/
+enable-tftp
+tftp-root=/mnt/archiso

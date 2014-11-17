@@ -62,12 +62,13 @@ Reference: https://wiki.archlinux.org/index.php/Archiso
 
 The following steps are done in a working Arch Linux system.
 
-Installed archiso.
+- Installed archiso.
 
-Created test directory: ./archlive-test
+- Created test directory: ./archlive-test
 
-Copy releng "profile" from host to archlive-test:
-(as root, in ./archlive-test)
+- Copy releng "profile" from host to archlive-test
+  (as root, in ./archlive-test):
+
 ~~~
 # cp -r /usr/share/archiso/configs/releng/ .
 ~~~
@@ -75,7 +76,7 @@ Copy releng "profile" from host to archlive-test:
 #### Adaptions to releng/airootfs:
 
 - Adapt hostname
-  (in etc/hostname: live-install-server )
+  (in etc/hostname: archlive-install-server )
 
 - Set the keymap (convenience).
   (create etc/vconsole.conf: KEYMAP="de_CH-latin1" )
@@ -83,14 +84,26 @@ Copy releng "profile" from host to archlive-test:
 - Set the timezone and clock.
   (customize_airootfs.sh: adapt timezone )
 
-Set up the network w/ a static IP.
+Set up the network w/ a static IP:
+
 - added etc/hosts
 - don't start dhcpcd
   (add suffix _ORIGINAL-airootfs to etc/udev/rules.d/81-dhcpcd.rules/81-dhcpcd.rules )
 - prevent udev of giving network devices a terribly stupid name
-  (add etc/udev/rules.d/80-net-setup-link.rules )
-  (See: http://www.freedesktop.org/wiki/Software/systemd/PredictableNetworkInterfaceNames/ )
-- set static ip
-  (create etc/udev/rules.d/81-eth0-static-ip.rules ,
+  (add etc/udev/rules.d/80-net-setup-link.rules)  
+  (See: http://www.freedesktop.org/wiki/Software/systemd/PredictableNetworkInterfaceNames/)
+- set static IP
+  (create etc/udev/rules.d/81-eth0-static-ip.rules,
    and script under root/local/eth0-static-ip )
 
+#### Configure as PXE server
+
+Reference: https://wiki.archlinux.org/index.php/Archiso_as_pxe_server
+
+- configure and enable dnsmasq
+  (config under /etc/dnsmasq.conf, link /usr/lib/systemd/system/dnsmasq.service
+   to /etc/systemd/system/multi-user.target.wants/dnsmasq.service)
+
+- mount archlive-install-target iso and start darkhttpd
+  --> script ...
+  --> add root to dnsmasq.conf
