@@ -1,1 +1,1 @@
-ACTION=="add", SUBSYSTEM=="net", ENV{INTERFACE}=="eth0", RUN+="/root/local/eth0-static-ip"
+ACTION=="add", SUBSYSTEM=="net", ENV{INTERFACE}=="eth0", ENV{SYSTEMD_WANTS}="eth0-static-ip.service"

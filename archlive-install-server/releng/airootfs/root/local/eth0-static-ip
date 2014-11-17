@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# set static ip on eth0
+# live install server - set static ip on eth0
 #
-# Settings
-# --------
+# Internal settings
+# -----------------
 #
 # IP address
 IP_ADDR=192.168.0.1
@@ -11,8 +11,7 @@ IP_ADDR=192.168.0.1
 # Subnet mask in CIDR notation
 SUBNET_MASK_CIDR=/24
 
-
 ip link set eth0 down
 ip link set eth0 up
 
-ip addr add ${IP_ADDR}${SUBNET_MASK_CIDR} dev eth0
+ip addr add ${IP_ADDR}$SUBNET_MASK_CIDR dev eth0

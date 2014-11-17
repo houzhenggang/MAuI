@@ -7,3 +7,6 @@ archlive-install-server/releng/out/
 
 # (ignore unmodified archiso dir)
 archlive-unmodified-test/
+
+# (exclude the archlive test iso)
+archlive-install-server/releng/airootfs/root/archlive-target/archlinux-2014.11.01-dual.iso

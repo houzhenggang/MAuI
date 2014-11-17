@@ -101,9 +101,13 @@ Set up the network w/ a static IP:
 Reference: https://wiki.archlinux.org/index.php/Archiso_as_pxe_server
 
 - configure and enable dnsmasq
-  (config under /etc/dnsmasq.conf, link /usr/lib/systemd/system/dnsmasq.service
-   to /etc/systemd/system/multi-user.target.wants/dnsmasq.service)
+  (config under /etc/dnsmasq.conf, link usr/lib/systemd/system/dnsmasq.service
+   to etc/systemd/system/multi-user.target.wants/dnsmasq.service)
+  ==> starting fails due to eth0 not ready
+      why ? --> call thru service file: /etc/systemd/system/eth0-static-ip.service
+  ==> starting fails due to permission for tftp-root
+  --> set read/execute permission on archlive-target mountpoint (in root/)
 
 - mount archlive-install-target iso and start darkhttpd
-  --> script ...
-  --> add root to dnsmasq.conf
+  (script root/server-run autostarted at login by root/.zlogin)
+

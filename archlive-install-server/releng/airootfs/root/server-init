@@ -1,0 +1,40 @@
+#!/bin/bash
+#
+# live install server - init script
+#
+# Internal settings
+# -----------------
+#
+# iso of the target live system
+# (use the official install medium for testing)
+ARCHLIVE_TARGET_ISO="/root/archlive-target/archlinux-2014.11.01-dual.iso"
+#
+# mountpoint of the target live system
+ARCHLIVE_TARGET_MNT="/root/archlive-target/mnt"
+#
+# success msg
+SUCCESS_MSG="  OK, going on."
+# failure msg
+FAIL_MSG="  FAILURE: This should not happen, leaving..."
+
+function check_ret() {
+    if [ "$1" -eq 0 ]; then
+        echo "$SUCCESS_MSG"
+        return
+    else
+        echo "$FAIL_MSG"
+        exit 1
+    fi
+}
+
+# (give some nice output)
+echo "Initiating live install server system..."
+# (mount target live iso)
+echo "  Mounting target live system..."
+mount -o loop,ro "$ARCHLIVE_TARGET_ISO" "$ARCHLIVE_TARGET_MNT"
+check_ret $?
+
+# (start darkhttpd)
+echo "  Starting HTTP server..."
+darkhttpd "$ARCHLIVE_TARGET_MNT" --no-keepalive --daemon
+check_ret $?

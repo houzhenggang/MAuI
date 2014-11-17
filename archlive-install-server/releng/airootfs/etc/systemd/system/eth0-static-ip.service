@@ -1,0 +1,14 @@
+[Unit]
+Description=Set static IP on eth0
+Wants=network.target
+Before=network.target
+BindsTo=sys-subsystem-net-devices-eth0.device
+After=sys-subsystem-net-devices-eth0.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/root/local/eth0-static-ip
+
+[Install]
+WantedBy=multi-user.target
