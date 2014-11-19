@@ -1,0 +1,82 @@
+#!/bin/bash
+#
+# live install server - init script
+#
+# Internal settings
+# -----------------
+#
+# iso of the target live system
+# (use the official install medium for testing)
+ARCHLIVE_TARGET_ISO="/root/archlive-target/archlinux-2014.11.01-dual.iso"
+#
+# mountpoint of the target live system
+ARCHLIVE_TARGET_MNT="/root/archlive-target/mnt"
+#
+# mountpoint of the storage device
+#IMG_DEV_MNT="/root/images-mnt"
+# (for testing)
+IMG_DEV_MNT="./images-mnt"
+#
+# message prefix
+PRE_MSG="[server-init]:"
+# success msg
+SUCCESS_MSG="$PRE_MSG OK, going on."
+# failure msg
+FAIL_MSG="$PRE_MSG FAILURE: This should not happen, leaving..."
+
+function check_ret() {
+    # check the return value, exit on failure
+    # $1: return value
+    if [ $1 -eq 0 ]; then
+        echo "$SUCCESS_MSG"
+        return
+    else
+        echo "$FAIL_MSG"
+        exit 1
+    fi
+}
+
+# (give some nice output)
+echo "$PRE_MSG Initiating live install server system..."
+# (mount target live iso)
+echo "$PRE_MSG Mounting target live system..."
+#mount -o loop,ro "$ARCHLIVE_TARGET_ISO" "$ARCHLIVE_TARGET_MNT"
+true
+check_ret $?
+
+# (start darkhttpd)
+echo "$PRE_MSG Starting HTTP server..."
+#darkhttpd "$ARCHLIVE_TARGET_MNT" --no-keepalive --daemon
+true
+check_ret $?
+
+# (source images storage settings)
+echo "$PRE_MSG Read images storage settings..."
+. images-storage.settings
+check_ret $?
+
+# (mount image storage)
+echo "$PRE_MSG Mount images storage..."
+mount -U "$IMG_DEV_UUID" "$IMG_DEV_MNT"
+# (for testing only)
+true
+check_ret $?
+
+
+# (create a list of present images)
+shopt -s nullglob
+IMG_LIST=()
+# (testing, real: use *.sfs)
+for img in "$IMG_DEV_MNT/$IMG_SUBDIR/"* ; do
+    IMG_LIST+=("$img")
+    echo "$img"
+done
+echo "IMG 2: ${IMG_LIST[0]}"
+
+for img in $IMG_LIST; do
+    echo $img
+done
+
+# (end output)
+echo ""
+echo "$PRE_MSG Initialization finished."

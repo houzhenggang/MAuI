@@ -106,8 +106,9 @@ Reference: https://wiki.archlinux.org/index.php/Archiso_as_pxe_server
   ==> starting fails due to eth0 not ready
       why ? --> call thru service file: /etc/systemd/system/eth0-static-ip.service
   ==> starting fails due to permission for tftp-root
-  --> set read/execute permission on archlive-target mountpoint (in root/)
+  --> set read/execute permission on root/ (archlive-target mountpoint)
 
 - mount archlive-install-target iso and start darkhttpd
   (script root/server-run autostarted at login by root/.zlogin)
+
 

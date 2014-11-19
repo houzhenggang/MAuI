@@ -13,9 +13,9 @@ ARCHLIVE_TARGET_ISO="/root/archlive-target/archlinux-2014.11.01-dual.iso"
 ARCHLIVE_TARGET_MNT="/root/archlive-target/mnt"
 #
 # success msg
-SUCCESS_MSG="  OK, going on."
+SUCCESS_MSG="[server-init]: OK, going on."
 # failure msg
-FAIL_MSG="  FAILURE: This should not happen, leaving..."
+FAIL_MSG="[server-init]: FAILURE: This should not happen, leaving..."
 
 function check_ret() {
     if [ "$1" -eq 0 ]; then
@@ -28,13 +28,20 @@ function check_ret() {
 }
 
 # (give some nice output)
-echo "Initiating live install server system..."
+echo "[server-init]: Initiating live install server system..."
 # (mount target live iso)
-echo "  Mounting target live system..."
+echo "[server-init]: Mounting target live system..."
 mount -o loop,ro "$ARCHLIVE_TARGET_ISO" "$ARCHLIVE_TARGET_MNT"
 check_ret $?
 
 # (start darkhttpd)
-echo "  Starting HTTP server..."
+echo "[server-init]: Starting HTTP server..."
 darkhttpd "$ARCHLIVE_TARGET_MNT" --no-keepalive --daemon
 check_ret $?
+
+
+
+
+# (end output)
+echo "[server-init]: Initialization finished."
+echo ""
