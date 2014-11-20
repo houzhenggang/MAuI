@@ -8,21 +8,41 @@
 # iso of the target live system
 # (use the official install medium for testing)
 ARCHLIVE_TARGET_ISO="/root/archlive-target/archlinux-2014.11.01-dual.iso"
-#
+
 # mountpoint of the target live system
 ARCHLIVE_TARGET_MNT="/root/archlive-target/mnt"
-#
+
 # mountpoint of the storage device
-#IMG_DEV_MNT="/root/images-mnt"
+#IMG_MNT="/root/images-mnt"
 # (for testing)
-IMG_DEV_MNT="./images-mnt"
-#
+IMG_MNT="./images-mnt"
+
 # message prefix
 PRE_MSG="[server-init]:"
 # success msg
 SUCCESS_MSG="$PRE_MSG OK, going on."
 # failure msg
 FAIL_MSG="$PRE_MSG FAILURE: This should not happen, leaving..."
+
+# lockfile directory
+#LOCK_DIR="/root/locks"
+# (for testing)
+LOCK_DIR="./locks"
+# darkhttpd pidfile
+DHTTPD_LOCK="darkhttpd.pid"
+
+
+# Global variables
+# ----------------
+#
+# list of image filenames (array)
+declare -a IMG_LIST
+# the selected image, filename
+declare IMG_FILE
+
+
+# Functions
+# ---------
 
 function check_ret() {
     # check the return value, exit on failure
@@ -36,47 +56,155 @@ function check_ret() {
     fi
 }
 
-# (give some nice output)
-echo "$PRE_MSG Initiating live install server system..."
-# (mount target live iso)
-echo "$PRE_MSG Mounting target live system..."
-#mount -o loop,ro "$ARCHLIVE_TARGET_ISO" "$ARCHLIVE_TARGET_MNT"
-true
-check_ret $?
+function mount_lock() {
+    # mount a filesystem,iso or image and create a lock file
+    #
+    # $1: mount options
+    # $2: filesystem
+    # $3: mountpoint
+    # $4: lockfile
 
-# (start darkhttpd)
-echo "$PRE_MSG Starting HTTP server..."
-#darkhttpd "$ARCHLIVE_TARGET_MNT" --no-keepalive --daemon
-true
-check_ret $?
+    # (formulated outputs below, not needed here, evtl. for debugging)
+    #echo "$PRE_MSG Mounting $2 on $3..."
 
-# (source images storage settings)
-echo "$PRE_MSG Read images storage settings..."
-. images-storage.settings
-check_ret $?
+    # (check if lock file present)
+    if [ -f "$LOCK_DIR/$4" ]; then
+        echo "$PRE_MSG Lockfile found, seems to be already mounted, continuing."
+        return
+    fi
 
-# (mount image storage)
-echo "$PRE_MSG Mount images storage..."
-mount -U "$IMG_DEV_UUID" "$IMG_DEV_MNT"
-# (for testing only)
-true
-check_ret $?
+    # (mount)
+    #mount "$1" "$2" "$3"
+    true
+
+    # (check and lock, or leave)
+    if [ $? -eq 0 ]; then
+        echo "$PRE_MSG Mounting OK, creating lockfile and going on."
+        # (put the mountpoint into the lockfile)
+        echo "$3" > "$LOCK_DIR/$4"
+        return
+    else
+        echo "$PRE_MSG Mounting FAILED, manual intervention required, leaving."
+        exit 1
+    fi
+}
+
+function read_num_input() {
+    # read and verify numerical user input
+    # retry if invalid, return valid
+    #
+    # $1: max. range (i.e.: 1..n)
+
+    local user_input=""
+    read -p "Enter number: " user_input
+
+    # (check if number)
+    if [[ "$user_input" =~ ^[0-9]+$ ]]; then
+        # (check if in range)
+        if [ $user_input -ge 1 -a $user_input -le $1 ]; then
+            echo $user_input
+        else
+            echo "Garbage: Number out of range. Retry." >&2
+            read_num_input $1
+        fi
+    else
+        echo "Garbage: Not a number. Retry." >&2
+        read_num_input $1
+    fi
+}
 
 
-# (create a list of present images)
-shopt -s nullglob
-IMG_LIST=()
-# (testing, real: use *.sfs)
-for img in "$IMG_DEV_MNT/$IMG_SUBDIR/"* ; do
-    IMG_LIST+=("$img")
-    echo "$img"
-done
-echo "IMG 2: ${IMG_LIST[0]}"
+function selector_images() {
+    # selector for the images
 
-for img in $IMG_LIST; do
-    echo $img
-done
+    echo -e "\nChoose the image you want to install on the targets:\n"
 
-# (end output)
-echo ""
-echo "$PRE_MSG Initialization finished."
+    local img cnt=1 filename descname description
+    for img_file in ${IMG_LIST[@]}; do
+
+        #filename=$(basename $img)
+        descpath="${IMG_MNT}/${IMG_SUBDIR}/${img_file%.*}.shortdesc"
+        if [ -f $descpath ]; then
+            description=$(cat $descpath)
+        else
+            description=""
+        fi
+
+        echo -e "  ${cnt}) $img_file\t $description"
+
+        let cnt=cnt+1
+    done
+
+    echo ""
+    local sel_num=$(read_num_input ${#IMG_LIST[@]})
+    # (correction cause array starts at 0)
+    let img_num=sel_num-1
+
+    IMG_FILE="${IMG_LIST[$img_num]}"
+}
+
+
+# Main
+# ----
+
+function main() {
+
+    # (give some nice output)
+    echo "$PRE_MSG Initiating live install server system..."
+
+    # (mount target live iso)
+    echo "$PRE_MSG Mounting target live system..."
+    mount_lock "-o loop,ro" "$ARCHLIVE_TARGET_ISO" "$ARCHLIVE_TARGET_MNT" target.mnt
+
+    # (start darkhttpd)
+    echo "$PRE_MSG Starting HTTP server..."
+    if [ -f "$LOCK_DIR/$DHTTPD_LOCK" ]; then
+        echo "$PRE_MSG darkhttpd seems to be already running, continuing."
+    else
+        #darkhttpd "$ARCHLIVE_TARGET_MNT" --no-keepalive --daemon --pidfile $DHTTPD_LOCK
+        true
+        check_ret $?
+    fi
+
+    # (source images storage settings)
+    echo "$PRE_MSG Read images storage settings..."
+    . images-storage.settings
+    check_ret $?
+
+    # (mount image storage)
+    echo "$PRE_MSG Mount images storage..."
+    mount_lock "-U" "$IMG_DEV_UUID" "$IMG_MNT" storage.mnt
+
+    # (create a list of present images)
+    shopt -s nullglob
+    local img img_file
+    for img in "${IMG_MNT}/${IMG_SUBDIR}/"*.sfs ; do
+        img_file=$(basename "$img")
+        IMG_LIST+=("$img_file")
+    done
+    # (verify if images were found)
+    if [ ${#IMG_LIST[@]} -eq 0 ]; then
+        echo "$PRE_MSG No squashfs (*.sfs) images were found in the storage subdir, check manually, leaving."
+        exit 1
+    else
+        echo "$PRE_MSG Images found, okay."
+    fi
+
+    # (select image)
+    selector_images
+
+    echo "$IMG_FILE"
+
+
+    # (end output)
+    echo ""
+    echo "$PRE_MSG Initialization finished."
+}
+
+main
+
+
+# --> git: commit and push
+# --> positive integer
+# --> refs
+# --> why return
