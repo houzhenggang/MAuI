@@ -91,14 +91,16 @@ function mount_lock() {
 
 function read_num_input() {
     # read and verify numerical user input
-    # retry if invalid, return valid
+    # retry if invalid, _return_ valid
+    # (use echo to _return_ instead of return or global variable here)
     #
     # $1: max. range (i.e.: 1..n)
 
     local user_input=""
     read -p "Enter number: " user_input
 
-    # (check if number)
+    # (check if number and range)
+    # (ref: http://unix.stackexchange.com/questions/118856/check-if-reply-is-in-a-range-of-numbers)
     if [[ "$user_input" =~ ^[0-9]+$ ]]; then
         # (check if in range)
         if [ $user_input -ge 1 -a $user_input -le $1 ]; then
@@ -108,7 +110,7 @@ function read_num_input() {
             read_num_input $1
         fi
     else
-        echo "Garbage: Not a number. Retry." >&2
+        echo "Garbage: Not a number (positive integer). Retry." >&2
         read_num_input $1
     fi
 }

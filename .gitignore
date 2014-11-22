@@ -12,5 +12,7 @@ archlive-unmodified-test/
 archlive-install-server/releng/airootfs/root/archlive-target/archlinux-2014.11.01-dual.iso
 
 # (exclude mounted and locks content from script-test)
-script-test/images-mnt/*
-script-test/locks/*
+script-test/images-mnt/
+script-test/locks/
+script-test/img-mnt_ROOT/
+script-test/img-mnt_SFS/
