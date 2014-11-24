@@ -2,23 +2,30 @@
 #
 # live install server - init script
 #
-# Internal settings
+# Global variables
 # -----------------
 #
-# iso of the target live system
-# (use the official install medium for testing)
-ARCHLIVE_TARGET_ISO="/root/archlive-target/archlinux-2014.11.01-dual.iso"
-#
-# mountpoint of the target live system
-ARCHLIVE_TARGET_MNT="/root/archlive-target/mnt"
-#
+# environment settings file
+ENV_CONF="./environment.conf"
+
+# message prefix
+PRE_MSG="[server-init]:"
 # success msg
-SUCCESS_MSG="[server-init]: OK, going on."
+SUCCESS_MSG="OK: Going on."
 # failure msg
-FAIL_MSG="[server-init]: FAILURE: This should not happen, leaving..."
+FAIL_MSG="FAILURE: This should not happen, leaving..."
+
+# the selected image, filename
+declare SFS_IMG
+
+
+# Functions
+# ---------
 
 function check_ret() {
-    if [ "$1" -eq 0 ]; then
+    # check the return value, exit on failure
+    # $1: return value
+    if [ $1 -eq 0 ]; then
         echo "$SUCCESS_MSG"
         return
     else
@@ -27,21 +34,354 @@ function check_ret() {
     fi
 }
 
-# (give some nice output)
-echo "[server-init]: Initiating live install server system..."
-# (mount target live iso)
-echo "[server-init]: Mounting target live system..."
-mount -o loop,ro "$ARCHLIVE_TARGET_ISO" "$ARCHLIVE_TARGET_MNT"
-check_ret $?
+function mount_lock() {
+    # mount a filesystem,iso or image and create a lock file
+    #
+    # $1: mount options
+    # $2: filesystem
+    # $3: mountpoint
+    # $4: lockfile
 
-# (start darkhttpd)
-echo "[server-init]: Starting HTTP server..."
-darkhttpd "$ARCHLIVE_TARGET_MNT" --no-keepalive --daemon
-check_ret $?
+    # (formulated outputs below, not needed here, evtl. for debugging)
+    #echo "$PRE_MSG Mounting $2 on $3..."
+
+    # (check if lock file present)
+    if [ -f "$LOCK_DIR/$4" ]; then
+        echo "Lockfile found, seems to be already mounted. Continuing."
+        return 0
+    fi
+
+    # (mount)
+    mount $1 "$2" "$3"
+    #: (to debug)
+    #true
+
+    # (check and lock, or leave)
+    if [ $? -eq 0 ]; then
+        echo "OK: Mounted. Creating lockfile and going on."
+        # (put the mountpoint into the lockfile)
+        echo "$3" > "$LOCK_DIR/$4"
+        return 0
+    else
+        echo "FAILED: Mounting failed. Returning error (1)."
+        return 1
+    fi
+}
+
+function umount_lock() {
+    # unmount and remove lockfile
+    #
+    # $1: mountpoint
+    # $2: lockfile
+
+    # (umount)
+    umount "$1"
+    #: (to debug)
+    #true
+
+    if [ $? -eq 0 ]; then
+        echo "Unmounted. Removing lockfile..."
+        rm "$LOCK_DIR/$2"
+        return 0
+    else
+        echo "FAILED: Unmounting $1 failed. Returning error (1)."
+        return 1
+    fi
+}
+
+function read_num_input() {
+    # read and verify numerical user input
+    # retry if invalid, _return_ valid
+    # (use echo to _return_ here, instead of return or global variable,
+    #  is cleaner since function may be called multiple times)
+    #
+    # $1: max. range (i.e.: 1..n)
+
+    echo "" >&2
+
+    local user_input=""
+    read -p "Enter number: " user_input
+
+    # (check if number and range)
+    # (ref: http://unix.stackexchange.com/questions/118856/check-if-reply-is-in-a-range-of-numbers)
+    if [[ "$user_input" =~ ^[0-9]+$ ]]; then
+        # (check if in range)
+        if [ $user_input -ge 1 -a $user_input -le $1 ]; then
+            echo $user_input
+        else
+            echo "Garbage: Number out of range. Retry." >&2
+            read_num_input $1
+        fi
+    else
+        echo "Garbage: Not a number (positive integer). Retry." >&2
+        read_num_input $1
+    fi
+}
+
+function selector_storage() {
+    # selector for the storage partition
+
+    echo -e "\nSelect the image storage partition:"
+    echo -e "(Must contain the directory: /${STORAGE_SUBDIR}/.)"
+
+    # (read all partitions into array)
+    local partition_lines=()
+    while read line
+    do
+        partition_lines+=("$line")
+    done < <(lsblk -dsn --output NAME,SIZE,TYPE,MOUNTPOINT)
+
+    # (output)
+    echo ""
+    local cnt=1
+    for line in "${partition_lines[@]}"; do
+        echo -e "  ${cnt})\t$line"
+        let cnt+=1
+    done
+
+    local sel_num=$(read_num_input ${#partition_lines[@]})
+    # (correction cause array starts at 0)
+    let part_num=sel_num-1
+    local part_line="${partition_lines[$part_num]}"
+
+    # (assemble partition device name, e.g. /dev/sda4)
+    local part_dev="/dev/$(echo $part_line|cut -d' ' -f1)"
+
+    echo "Partition: $part_dev"
+
+    # (mount and check)
+    echo "Trying to mount..."
+    mount_lock "" "$part_dev" "$STORAGE_MNT" storage.mnt
+    if [ $? -gt 0 ]; then
+        echo "FAIILED: Mounting failed. Reselect."
+        selector_storage
+        return
+    else
+        echo "Looking for images directory: /$STORAGE_SUBDIR/"
+            if [ -d "$STORAGE_MNT/$STORAGE_SUBDIR" ]; then
+                echo "OK: Directory found. Continuing."
+            else
+                echo "FAILED: Directory not found."
+                echo "Unmount and reselect..."
+                umount_lock "$STORAGE_MNT" storage.mnt
+                check_ret $?
+                selector_storage
+                return
+            fi
+    fi
+}
+
+function selector_images() {
+    # selector for the images
+
+    # (create a list of present images)
+    shopt -s nullglob
+    local img img_file img_list=()
+    for img in "${STORAGE_MNT}/${STORAGE_SUBDIR}"/*.sfs ; do
+        img_file=$(basename "$img")
+        img_list+=("$img_file")
+    done
+    # (verify if images were found)
+    if [ ${#img_list[@]} -eq 0 ]; then
+        echo "$PRE_MSG No squashfs (*.sfs) images were found in the storage subdir, check manually, leaving."
+        exit 1
+    else
+        echo "$PRE_MSG Images found, okay."
+    fi
+
+    echo -e "\nChoose the image you want to install on the targets:\n"
+
+    local img cnt=1 filename descname description
+    for img_file in ${img_list[@]}; do
+
+        #filename=$(basename $img)
+        descpath="${STORAGE_MNT}/${STORAGE_SUBDIR}/${img_file%.*}.shortdesc"
+        if [ -f $descpath ]; then
+            description=$(cat $descpath)
+        else
+            description=""
+        fi
+
+        echo -e "  ${cnt}) $img_file\t $description"
+
+        let cnt+=1
+    done
+
+    local sel_num=$(read_num_input ${#img_list[@]})
+    # (correction cause array starts at 0)
+    let img_num=sel_num-1
+
+    SFS_IMG="${img_list[$img_num]}"
+}
+
+function get_ssize() {
+    # get the sector size of a mounted device
+    #
+    # $1: mountpoint
+
+    # (get the device from the mountpoint)
+    local device=$(df --output=source "$1" |tail -n1)
+
+    local ssize=$(blockdev --getss "$device")
+
+    echo $ssize
+}
+
+function selector_target_img_part() {
+    # select and mount the target image partitions
+    #
+    # $1: Partition: ROOT or HOME
+
+    echo -e "\nSelect the target image _$1_ partition:\n"
+
+    echo -e "  \tNR\tSTART\tEND\tSECTORS\tSIZE\tNAME\tUUID"
+
+    # (read partitions into array)
+    local partition_lines=()
+    while read line
+    do
+        partition_lines+=("$line")
+    done < <(partx --show -g "${SFS_MNT}/${TARGET_IMG}" 2>/dev/null)
+
+    # (output)
+    echo ""
+    local cnt=1
+    for line in "${partition_lines[@]}"; do
+        echo -e "  ${cnt})\t$line"
+        let cnt+=1
+    done
+
+    local sel_num=$(read_num_input ${#partition_lines[@]})
+    # (correction cause array starts at 0)
+    let part_num=sel_num-1
+    local part_line="${partition_lines[$part_num]}"
+
+    echo "Partition: $part_line"
+
+    local sector_start=$(echo $part_line | cut -d' ' -f2)
+
+    echo "Start sector: $sector_start"
+
+    # (get image sector size)
+    echo "Extracting image sector size."
+    local sector_size=$(get_ssize "$SFS_MNT")
+    #: (to debug, root rights needed)
+    #local sector_size=512
+
+    echo "Image sector size: $sector_size"
+
+    # (calculate partition start)
+    echo "Calculate partition start."
+    local part_start=$(echo "${sector_size}*${sector_start}" | bc)
+
+    echo "Partition start at ( start_sector * sector_size ): $sector_start * $sector_size = $part_start"
+
+    # (mounting partition w/ offset)
+    echo "Mounting target image partition $1 w/ offset $part_start..."
+    mount_lock "-o loop,offset=${part_start}" "${SFS_MNT}/${TARGET_IMG}" "${IMG_MNT_PATH_PART}$1" "target-$1.mnt"
+    check_ret $?
+}
+
+function find_target_image() {
+    # find the target image file inside the mounted squashfs
+
+    echo "Looking for target image inside mounted SquashFS..."
+    echo "(Will use the first file found.)"
+
+    # (use the first best)
+    shopt -s nullglob
+    local files=() filename
+    for file in "${SFS_MNT}"/*; do
+        filename=$(basename "$file")
+        files+=("$filename")
+        break
+    done
+
+    # (verify)
+    if [ "${#files[@]}" -lt 1 ]; then
+        echo "Ooops, no image found inside the SquashFS. This should not happen. Manual intervention required. Leaving."
+        return 1
+    fi
+
+    TARGET_IMG="${files[0]}"
+    echo "Target image: $SFS_MNT/$TARGET_IMG"
+    return 0
+}
+
+
+# Main
+# ----
+
+function main() {
+
+    # (ask nicely)
+    read -n 1 -p "Press [s] to initiate the server or another key to do something else..." -s key
+    if [[ ! "$key" == 's' ]] && [[ ! "$key" == 'S' ]]; then
+        echo -e "\nTo restart the server script enter: ./server-init"
+        echo "Good luck."
+        exit 0
+    fi
+
+    # (give some nice output)
+    echo "$PRE_MSG Initiating live install server system..."
+
+    # (source the environment settings)
+    echo "$PRE_MSG Source the environment settings..."
+    . "$ENV_CONF"
+    check_ret $?
+
+    # (select image storage)
+    selector_storage
+    echo ""
+
+    # (select image)
+    selector_images
+    echo "SquashFS image: $SFS_IMG"
+    echo ""
+
+    # (mount SquashFS image)
+    echo "$PRE_MSG Mounting SquashFS image..."
+    mount_lock "-o loop,ro" "${STORAGE_MNT}/${STORAGE_SUBDIR}/${SFS_IMG}" "$SFS_MNT" sfs.mnt
+    check_ret $?
+    echo ""
+
+    # (find target image inside mounted SquashFS)
+    find_target_image
+    check_ret $?
+    echo ""
+
+    echo "$PRE_MSG Mount target image partitions..."
+    selector_target_img_part ROOT
+    echo ""
+    selector_target_img_part HOME
+    echo ""
+
+    echo "$PRE_MSG Setting up server."
+    echo ""
+
+    # (mount target live iso)
+    echo "$PRE_MSG Mounting target live system..."
+    mount_lock "-o loop,ro" "$ARCHLIVE_TARGET_ISO" "$ARCHLIVE_TARGET_MNT" target.mnt
+    check_ret $?
+
+    # (start darkhttpd)
+    echo "$PRE_MSG Starting HTTP server..."
+    if [ -f "$LOCK_DIR/$DHTTPD_LOCK" ]; then
+        echo "$PRE_MSG darkhttpd seems to be already running, continuing."
+    else
+        darkhttpd "$ARCHLIVE_TARGET_MNT" --no-keepalive --daemon --pidfile $DHTTPD_LOCK
+        #: (to debug)
+        #true
+        check_ret $?
+    fi
 
 
 
 
-# (end output)
-echo "[server-init]: Initialization finished."
-echo ""
+
+    # (end output)
+    echo ""
+    echo "$PRE_MSG Initialization finished."
+}
+
+main

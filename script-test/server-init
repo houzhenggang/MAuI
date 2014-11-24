@@ -52,8 +52,9 @@ function mount_lock() {
     fi
 
     # (mount)
-    #mount "$1" "$2" "$3"
-    true
+    mount $1 "$2" "$3"
+    #: (to debug)
+    #true
 
     # (check and lock, or leave)
     if [ $? -eq 0 ]; then
@@ -74,12 +75,13 @@ function umount_lock() {
     # $2: lockfile
 
     # (umount)
-    #umount "$1"
-    true
+    umount "$1"
+    #: (to debug)
+    #true
 
     if [ $? -eq 0 ]; then
         echo "Unmounted. Removing lockfile..."
-        #rm "$LOCK_DIR/$2"
+        rm "$LOCK_DIR/$2"
         return 0
     else
         echo "FAILED: Unmounting $1 failed. Returning error (1)."
@@ -262,8 +264,9 @@ function selector_target_img_part() {
 
     # (get image sector size)
     echo "Extracting image sector size."
-    #local sector_size=$(get_img_ssize)
-    local sector_size=512
+    local sector_size=$(get_img_ssize)
+    #: (to debug, root rights needed)
+    #local sector_size=512
 
     echo "Image sector size: $sector_size"
 
@@ -323,6 +326,7 @@ function main() {
     echo "$PRE_MSG Initiating live install server system..."
 
     # (source the environment settings)
+    echo "$PRE_MSG Source the environment settings..."
     . "$ENV_CONF"
     check_ret $?
 
@@ -337,7 +341,7 @@ function main() {
 
     # (mount SquashFS image)
     echo "$PRE_MSG Mounting SquashFS image..."
-    mount_lock "-o loop,ro" "${STORAGE_MNT}/${STORAGE_SUBDIR}/${SFS_IMG}" "SFS_MNT" sfs.mnt
+    mount_lock "-o loop,ro" "${STORAGE_MNT}/${STORAGE_SUBDIR}/${SFS_IMG}" "$SFS_MNT" sfs.mnt
     check_ret $?
     echo ""
 
@@ -365,8 +369,9 @@ function main() {
     if [ -f "$LOCK_DIR/$DHTTPD_LOCK" ]; then
         echo "$PRE_MSG darkhttpd seems to be already running, continuing."
     else
-        #darkhttpd "$ARCHLIVE_TARGET_MNT" --no-keepalive --daemon --pidfile $DHTTPD_LOCK
-        true
+        darkhttpd "$ARCHLIVE_TARGET_MNT" --no-keepalive --daemon --pidfile $DHTTPD_LOCK
+        #: (to debug)
+        #true
         check_ret $?
     fi
 
@@ -380,6 +385,3 @@ function main() {
 }
 
 main
-
-
-
