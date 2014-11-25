@@ -5,8 +5,8 @@
 # Global variables
 # -----------------
 #
-# environment settings file
-ENV_CONF="./environment.conf"
+# settings file
+CONFIG="./server-init.conf"
 
 # message prefix
 PRE_MSG="[server-init]:"
@@ -326,8 +326,8 @@ function main() {
     echo "$PRE_MSG Initiating live install server system..."
 
     # (source the environment settings)
-    echo "$PRE_MSG Source the environment settings..."
-    . "$ENV_CONF"
+    echo "$PRE_MSG Load settings..."
+    . "$CONFIG"
     check_ret $?
 
     # (select image storage)
