@@ -95,6 +95,8 @@ Set up the network w/ a static IP:
 - set static IP
   (create etc/udev/rules.d/81-eth0-static-ip.rules,
    and script under root/local/eth0-static-ip )
+  --> start via systemd instead of udev rule, systemd doesn't get the
+      depency right otherwise
 
 #### Configure as PXE server
 
@@ -109,6 +111,7 @@ Reference: https://wiki.archlinux.org/index.php/Archiso_as_pxe_server
   --> set read/execute permission on root/ (archlive-target mountpoint)
 
 - mount archlive-install-target iso and start darkhttpd
-  (script root/server-run autostarted at login by root/.zlogin)
+  (script root/server-init autostarted at login by root/.zlogin)
 
 
+More adaptions see the server-init script and the git log.
